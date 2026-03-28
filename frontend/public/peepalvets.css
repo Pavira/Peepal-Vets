@@ -457,11 +457,14 @@ body {
 
   .page {
     width: 100%;
-    min-height: auto;
+    min-height: 297mm;
     margin: 0;
     box-shadow: none;
     border: none;
     padding: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
     page-break-after: always;
   }
 
@@ -501,5 +504,16 @@ body {
 
   .field-label {
     white-space: normal;
+  }
+
+  .footer-signature {
+    margin-top: auto;
+  }
+
+  .footer-bar {
+    position: relative;
+    bottom: 0;
+    left: 0;
+    width: 100%;
   }
 }
