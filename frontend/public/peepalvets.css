@@ -186,10 +186,10 @@ body {
 
 /* short fields */
 .field-value.short {
-  max-width: 60px;
+  max-width: 150px;
 }
 .field-value.med {
-  max-width: 100px;
+  max-width: 200px;
 }
 
 /* ════════════════════════
@@ -498,15 +498,17 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* short fields */
+  .field-value.short {
+    max-width: 150px;
+  }
+  .field-value.med {
+    max-width: 200px;
+  }
 
   /* PREVENT BREAK */
   .field-row {
     break-inside: avoid;
-  }
-
-  .field-label,
-  .field-value {
-    min-width: 0;
   }
 
   .footer-signature {
