@@ -438,28 +438,24 @@ body {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 0;
+    margin: 0 !important;
   }
 
   html,
   body {
-    margin: 0;
-    padding: 0;
+    margin: 0 !important;
+    padding: 0 !important;
     width: 100%;
     min-height: 100%;
     background: #fff;
     color: #1a2340;
   }
 
-  body {
-    background: #fff;
-  }
-
   .page {
     width: 210mm;
     max-width: 100%;
     min-height: 297mm;
-    margin: 0 auto;
+    margin: 0 !important;
     box-shadow: none;
     border: none;
     padding: 0;
@@ -489,10 +485,23 @@ body {
     gap: 6px 10px;
   }
 
+  /* ROW FIX */
   .field-row {
-    min-width: 0;
-    flex-wrap: wrap;
-    gap: 5px;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+
+  .field-label,
+  .field-value {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* PREVENT BREAK */
+  .field-row {
+    break-inside: avoid;
   }
 
   .field-label,
