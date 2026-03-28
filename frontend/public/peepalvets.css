@@ -438,15 +438,15 @@ body {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 8mm;
+    margin: 0;
   }
 
   html,
   body {
     margin: 0;
     padding: 0;
-    width: 210mm;
-    min-height: 297mm;
+    width: 100%;
+    min-height: 100%;
     background: #fff;
     color: #1a2340;
   }
@@ -456,9 +456,10 @@ body {
   }
 
   .page {
-    width: 100%;
+    width: 210mm;
+    max-width: 100%;
     min-height: 297mm;
-    margin: 0;
+    margin: 0 auto;
     box-shadow: none;
     border: none;
     padding: 0;
@@ -480,7 +481,34 @@ body {
   }
 
   .body {
-    padding: 5px 12px 5px 14px;
+    padding: 5px 22px 5px 62px; /* match screen preview spacing */
+  }
+
+  .patient-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px 10px;
+  }
+
+  .field-row {
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .field-label,
+  .field-value {
+    min-width: 0;
+  }
+
+  .footer-signature {
+    margin-top: auto;
+  }
+
+  .footer-bar {
+    position: relative;
+    bottom: 0;
+    left: 0;
+    width: 100%;
   }
 
   .rx-table,
