@@ -45,6 +45,7 @@ export default function ListAppointments() {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfAppointment, setPdfAppointment] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const pdfIframeRef = useRef(null);
 
   useEffect(() => {
     fetchAppointments();
@@ -96,16 +97,16 @@ export default function ListAppointments() {
   };
 
   const handlePrint = async () => {
-    if (!pdfAppointment?.id) {
-      console.error("Appointment ID not available");
-      return;
-    }
-
     try {
-      const url = `/peepalvets.html?appointment_id=${pdfAppointment.id}&print=1&api_base=/api/v1`;
-      window.open(url, "_blank", "noopener");
+      const iframeWindow = pdfIframeRef.current?.contentWindow;
+      if (!iframeWindow) {
+        console.error("Prescription preview is not ready for printing.");
+        return;
+      }
+      iframeWindow.focus();
+      iframeWindow.print();
     } catch (error) {
-      console.error("Error opening prescription for printing:", error);
+      console.error("Error printing prescription preview:", error);
     }
   };
   const handleDownload = async () => {
@@ -360,6 +361,7 @@ export default function ListAppointments() {
                   message="Loading prescription..."
                 />
                 <iframe
+                  ref={pdfIframeRef}
                   src={`/peepalvets.html?appointment_id=${
                     pdfAppointment.id
                   }&api_base=/api/v1`}

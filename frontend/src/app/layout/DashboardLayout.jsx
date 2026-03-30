@@ -21,8 +21,17 @@ export default function DashboardLayout({ children }) {
           <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
             {children}
           </main>
-          <footer className="px-4 md:px-6 lg:px-8 py-4 text-center text-sm text-gray-500 border-t border-gray-200 bg-white">
-            All copyrights are reserved by Pavithiran.
+          <footer className="px-4 md:px-6 lg:px-8 py-4 border-t border-gray-200 bg-white">
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+              <img
+                src="SoftTechz_logo_and_name.png"
+                alt="SoftTechz Logo"
+                className="h-6 object-contain"
+              />
+              <span>
+                © {new Date().getFullYear()} SoftTechz. All rights reserved.
+              </span>
+            </div>
           </footer>
         </div>
       </div>
