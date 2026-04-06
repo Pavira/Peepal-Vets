@@ -6,6 +6,11 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.core.firebase import get_firestore
 from app.schemas.customer import CustomerCreate, CustomerUpdate
+from app.services.dashboard_stats_service import (
+    decrement_customers,
+    get_dashboard_stats,
+    increment_customers,
+)
 
 router = APIRouter()
 
@@ -67,6 +72,7 @@ def create_customer(payload: CustomerCreate):
                 "updated_at": None,
             }
         )
+        increment_customers()
 
         return {
             "success": True,
@@ -129,6 +135,7 @@ def delete_customer(customer_id: str):
         raise HTTPException(status_code=404, detail="Customer not found")
 
     doc_ref.delete()
+    decrement_customers()
 
     return {"success": True}
 
@@ -245,7 +252,7 @@ def get_all_customers(
             "petType": data.get("petType"),
         }
 
-    # Build base query + count query
+    # Build base query
     if search:
         term = normalize_name(search)
         if term is None or term == "":
@@ -256,14 +263,8 @@ def get_all_customers(
             .start_at([term])
             .end_at([f"{term}\uf8ff"])
         )
-        count_query = (
-            customers_ref.order_by("name_lower")
-            .start_at([term])
-            .end_at([f"{term}\uf8ff"])
-        )
     else:
         query = customers_ref.order_by("created_at", direction="DESCENDING")
-        count_query = customers_ref
 
     # Apply cursor pagination
     if cursor:
@@ -284,23 +285,15 @@ def get_all_customers(
     if has_next and selected_docs:
         next_cursor = selected_docs[-1].id
 
-    # total count aggregation
-    # total = 0
-    # try:
-    #     count_agg = count_query.count()
-    #     count_snapshot = count_agg.get()
-    #     if count_snapshot and len(count_snapshot) > 0:
-    #         total = int(count_snapshot[0].value)
-    # except Exception:
-    #     # fallback in case count aggregation not available
-    #     total = sum(1 for _ in count_query.stream())
+    stats = get_dashboard_stats()
+    total_customers = int(stats.get("total_customers", 0) or 0)
 
     return {
         "customers": customers,
         "limit": limit,
         "next_cursor": next_cursor,
         "has_next": has_next,
-        # "total": total,
+        "total": total_customers,
     }
 
 

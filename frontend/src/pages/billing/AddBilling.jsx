@@ -22,8 +22,8 @@ export default function AddBilling() {
     items: [
       {
         service_or_item: "",
-        quantity: 0,
-        rate: 0,
+        quantity: "",
+        rate: "",
         amount: 0,
       },
     ],
@@ -86,8 +86,8 @@ export default function AddBilling() {
         ...prev.items,
         {
           service_or_item: "",
-          quantity: 0,
-          rate: 0,
+          quantity: "",
+          rate: "",
           amount: 0,
         },
       ],
@@ -101,7 +101,7 @@ export default function AddBilling() {
         ...prev,
         items: items.length
           ? items
-          : [{ service_or_item: "", quantity: 0, rate: 0, amount: 0 }],
+          : [{ service_or_item: "", quantity: "", rate: "", amount: 0 }],
       };
     });
   };
@@ -324,8 +324,8 @@ export default function AddBilling() {
                         </td>
                         <td className="p-2">
                           <input
-                            type="number"
-                            min="0"
+                            // type="number"
+                            // min="0"
                             value={item.quantity}
                             onChange={(e) =>
                               handleItemChange(
@@ -339,8 +339,8 @@ export default function AddBilling() {
                         </td>
                         <td className="p-2">
                           <input
-                            type="number"
-                            min="0"
+                            // type="number"
+                            // min="0"
                             value={item.rate}
                             onChange={(e) =>
                               handleItemChange(index, "rate", e.target.value)
@@ -351,6 +351,7 @@ export default function AddBilling() {
                         <td className="p-2">
                           <input
                             type="number"
+                            // min="0"
                             value={item.amount.toFixed(2)}
                             disabled
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100"

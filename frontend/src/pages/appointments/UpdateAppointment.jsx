@@ -832,7 +832,7 @@ export default function UpdateAppointment() {
       };
 
       await updateAppointment(appointmentId, payload);
-      toast.success("Appointment closed successfully.");
+      toast.success("Appointment completed successfully.");
 
       // Store completed appointment and show prescription modal
       setCompletedAppointment({

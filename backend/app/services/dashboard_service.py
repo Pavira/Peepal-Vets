@@ -1,6 +1,7 @@
 import logging
 import time
 from app.core.firebase import get_firestore
+from app.services.dashboard_stats_service import get_dashboard_stats
 
 logger = logging.getLogger(__name__)
 
@@ -10,38 +11,17 @@ class DashboardService:
         self.db = get_firestore()
 
     def get_stats(self) -> dict:
-        """Fetch dashboard counters for patients, appointments, drugs, and revenue."""
+        """Fetch dashboard counters from precomputed metadata."""
         start_total = time.time()
         try:
             t0 = time.time()
-            total_customers = len(list(self.db.collection("customers").stream()))
-            print(f"[TIME] DashboardService.get_stats customers count: {time.time() - t0:.4f}s")
-
-            t1 = time.time()
-            total_appointments = len(list(self.db.collection("appointments").stream()))
-            print(f"[TIME] DashboardService.get_stats appointments count: {time.time() - t1:.4f}s")
-
-            t2 = time.time()
-            total_drugs = len(list(self.db.collection("drugs").stream()))
-            print(f"[TIME] DashboardService.get_stats drugs count: {time.time() - t2:.4f}s")
-
-            # Calculate total revenue from doctor fees of all appointments
-            t3 = time.time()
-            total_revenue = 0.0
-            for doc in self.db.collection("appointments").stream():
-                appointment_data = doc.to_dict() or {}
-                doctor_fee = appointment_data.get("doctorFee", 0)
-                total_revenue += float(doctor_fee or 0)
-            print(f"[TIME] DashboardService.get_stats revenue calc: {time.time() - t3:.4f}s")
+            stats = get_dashboard_stats()
+            print(
+                f"[TIME] DashboardService.get_stats metadata fetch: {time.time() - t0:.4f}s"
+            )
 
             print(f"[TIME] DashboardService.get_stats TOTAL: {time.time() - start_total:.4f}s")
-
-            return {
-                "total_customers": total_customers,
-                "total_appointments": total_appointments,
-                "total_drugs": total_drugs,
-                "total_revenue": round(total_revenue, 2),
-            }
+            return stats
         except Exception as e:
             print(
                 f"[TIME] DashboardService.get_stats TOTAL (error): {time.time() - start_total:.4f}s"

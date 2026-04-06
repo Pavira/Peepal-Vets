@@ -101,6 +101,10 @@ export default function HospitalDashboard() {
         const statsResponse = await getDashboardStats();
         if (statsResponse?.success) {
           const s = statsResponse.data;
+          const totalAppointments =
+            Number(s.total_appointments_active || 0) +
+            Number(s.total_appointments_completed || 0) +
+            Number(s.total_appointments_cancelled || 0);
           setStats([
             {
               title: "Total Patients",
@@ -111,7 +115,7 @@ export default function HospitalDashboard() {
             },
             {
               title: "Total Appointments",
-              value: s.total_appointments,
+              value: totalAppointments,
               icon: Calendar,
               trend: "+4.5% this week",
               trendColor: "text-emerald-500",
@@ -125,7 +129,7 @@ export default function HospitalDashboard() {
             },
             {
               title: "Total Revenue",
-              value: `₹${s.total_revenue.toLocaleString()}`,
+              value: `INR ${Number(s.total_revenue || 0).toLocaleString()}`,
               icon: DollarSign,
               trend: "+10% this week",
               trendColor: "text-emerald-500",
@@ -156,7 +160,7 @@ export default function HospitalDashboard() {
             },
             {
               title: "Total Revenue",
-              value: "₹0",
+              value: "INR 0",
               icon: DollarSign,
               trend: "-",
               trendColor: "text-slate-500",
@@ -367,3 +371,4 @@ export default function HospitalDashboard() {
     </DashboardLayout>
   );
 }
+

@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { getAllBilling } from "@/services/billing_service";
+import { getDashboardStats } from "@/services/dashboard_service";
 import ModuleHeader from "@/components/ui/ModuleHeader";
 
 export default function ListBilling() {
@@ -74,7 +75,10 @@ export default function ListBilling() {
           search: activeSearch ? activeSearchTerm : undefined,
         };
 
-        const response = await getAllBilling(params);
+        const [response, statsResponse] = await Promise.all([
+          getAllBilling(params),
+          getDashboardStats(),
+        ]);
 
         if (requestId !== requestIdRef.current) {
           return;
@@ -83,7 +87,7 @@ export default function ListBilling() {
         setBillings(response.billings || []);
         setNextCursor(response.next_cursor || null);
         setHasNext(Boolean(response.has_next));
-        setTotalBilling(response.total || 0);
+        setTotalBilling(statsResponse?.data?.total_billing || 0);
       } catch (err) {
         console.error("Error fetching billing list:", err);
         setError("Failed to load billing list. Please try again.");
@@ -162,7 +166,7 @@ export default function ListBilling() {
         <div className="mb-4">
           <p className="inline-flex items-center gap-2 text-sm text-purple-800 font-bold uppercase tracking-wide">
             <Users size={16} />
-            Total Bills - {totalBilling || billings.length}
+            Total Bills - {totalBilling}
           </p>
         </div>
 
@@ -323,7 +327,7 @@ export default function ListBilling() {
               <div className="text-xs md:text-sm text-gray-600">
                 Showing {billings.length > 0 ? startIndex + 1 : 0} to{" "}
                 {startIndex + billings.length} of{" "}
-                {totalBilling || billings.length} bills
+                {totalBilling} bills
               </div>
               <div className="flex items-center gap-1 md:gap-2">
                 <button

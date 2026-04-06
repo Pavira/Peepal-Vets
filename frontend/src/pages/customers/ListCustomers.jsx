@@ -24,6 +24,7 @@ import {
   createAppointment,
   getAllAppointments,
 } from "@/services/appointment_service";
+import { getDashboardStats } from "@/services/dashboard_service";
 import toast from "react-hot-toast";
 
 export default function ListCustomers() {
@@ -92,7 +93,10 @@ export default function ListCustomers() {
           search: activeSearch ? activeSearchTerm : undefined,
         };
 
-        const customerResponse = await getAllCustomers(params);
+        const [customerResponse, statsResponse] = await Promise.all([
+          getAllCustomers(params),
+          getDashboardStats(),
+        ]);
 
         if (requestId !== requestIdRef.current) {
           return;
@@ -101,7 +105,7 @@ export default function ListCustomers() {
         setCustomers(customerResponse.customers || []);
         setNextCursor(customerResponse.next_cursor || null);
         setHasNext(Boolean(customerResponse.has_next));
-        setTotalCustomers(customerResponse.total ?? 0);
+        setTotalCustomers(statsResponse?.data?.total_customers ?? 0);
       } catch (err) {
         if (requestIdRef.current) {
           setError("Failed to load customers. Please try again later.");
@@ -273,12 +277,12 @@ export default function ListCustomers() {
           }
         />
 
-        {/* <div className="mb-4">
+        <div className="mb-4">
           <p className="inline-flex items-center gap-2 text-sm text-purple-800 font-bold uppercase tracking-wide">
             <Users size={16} />
-            Total Patients - {totalCustomers || customers.length}
+            Total Patients - {totalCustomers}
           </p>
-        </div> */}
+        </div>
 
         {/* Search Bar */}
         <div className="mb-6 relative">

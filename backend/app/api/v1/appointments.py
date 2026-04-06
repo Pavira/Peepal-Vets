@@ -1,11 +1,17 @@
 from datetime import datetime, timezone
 from typing import Any, Optional
-import time
 
 from fastapi import APIRouter, HTTPException, Query, logger
 
 from app.core.firebase import get_firestore
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
+from app.services.dashboard_stats_service import (
+    apply_appointment_status_delta,
+    decrement_revenue,
+    get_dashboard_stats,
+    increment_revenue,
+    status_bucket,
+)
 from pathlib import Path
 
 router = APIRouter()
@@ -179,6 +185,9 @@ def create_appointment(payload: AppointmentCreate):
                 "updated_at": None,
             }
         )
+        apply_appointment_status_delta(None, appointment_data["status"])
+        if status_bucket(appointment_data["status"]) == "completed":
+            increment_revenue(_to_float(appointment_data.get("doctorFee"), 0))
 
         return {"success": True, "appointment_id": doc_ref.id, "id": doc_ref.id}
     except HTTPException:
@@ -187,75 +196,15 @@ def create_appointment(payload: AppointmentCreate):
         raise HTTPException(status_code=500, detail=str(error))
 
 
-# @router.get("/")
-# def get_all_appointments(
-#     date: Optional[str] = Query(default=None),
-#     customer_id: Optional[str] = Query(default=None),
-#     status: Optional[str] = Query(default=None),
-#     minimal: bool = Query(default=False),
-# ):
-#     db = get_firestore()
-#     base_query = db.collection("appointments")
-#
-#     if minimal:
-#         base_query = base_query.select(
-#             [
-#                 "customerId",
-#                 "customerName",
-#                 "phone",
-#                 "petName",
-#                 "petAgeYears",
-#                 "petAgeMonths",
-#                 "petType",
-#                 "petBreed",
-#                 "petSex",
-#                 "vaccinated",
-#                 "vaccinationStartDate",
-#                 "vaccinationEndDate",
-#                 "deworming",
-#                 "date",
-#                 "time",
-#                 "status",
-#                 "created_at",
-#             ]
-#         )
-#
-#     query = base_query.order_by("created_at", direction="DESCENDING")
-#
-#     if date:
-#         query = query.where("date", "==", date)
-#     if customer_id:
-#         query = query.where("customerId", "==", customer_id)
-#     if status:
-#         normalized_status = _validate_status(status)
-#         query = query.where("status", "==", normalized_status)
-#
-#     docs = query.stream()
-#     appointments = []
-#     for doc in docs:
-#         appointment_data = doc.to_dict() or {}
-#         appointment_data["id"] = doc.id
-#         appointments.append(appointment_data)
-#
-#     return {"appointments": appointments}
-
-
 @router.get("/")
 def get_all_appointments(
     date: Optional[str] = Query(default=None),
     customer_id: Optional[str] = Query(default=None),
     status: Optional[str] = Query(default=None),
     minimal: bool = Query(default=False),
-    limit: int = Query(10, ge=1, le=100),
-    cursor: str | None = Query(None),
-    search: str | None = Query(None, min_length=1),
 ):
-    start_total = time.time()
-
-    t0 = time.time()
     db = get_firestore()
     base_query = db.collection("appointments")
-    print(f"[TIME] Appointments DB init: {time.time() - t0:.4f}s")
 
     if minimal:
         base_query = base_query.select(
@@ -280,16 +229,7 @@ def get_all_appointments(
             ]
         )
 
-    t1 = time.time()
-    if search:
-        term = normalize_name(search) or ""
-        query = (
-            base_query.order_by("customerName_lower")
-            .start_at([term])
-            .end_at([f"{term}\uf8ff"])
-        )
-    else:
-        query = base_query.order_by("created_at", direction="DESCENDING")
+    query = base_query.order_by("created_at", direction="DESCENDING")
 
     if date:
         query = query.where("date", "==", date)
@@ -299,56 +239,136 @@ def get_all_appointments(
         normalized_status = _validate_status(status)
         query = query.where("status", "==", normalized_status)
 
-    count_query = query
-    print(f"[TIME] Appointments query build: {time.time() - t1:.4f}s")
-
-    t2 = time.time()
-    appointments_ref = db.collection("appointments")
-    if cursor:
-        cursor_doc = appointments_ref.document(cursor).get()
-        if cursor_doc.exists:
-            query = query.start_after(cursor_doc)
-    print(f"[TIME] Appointments cursor handling: {time.time() - t2:.4f}s")
-
-    query = query.limit(limit + 1)
-
-    t3 = time.time()
-    docs = list(query.stream())
-    print(f"[TIME] Appointments DB fetch (stream): {time.time() - t3:.4f}s")
-
-    has_next = len(docs) > limit
-    selected_docs = docs[:limit] if has_next else docs
-
-    t4 = time.time()
+    docs = query.stream()
     appointments = []
-    for doc in selected_docs:
+    for doc in docs:
         appointment_data = doc.to_dict() or {}
         appointment_data["id"] = doc.id
         appointments.append(appointment_data)
-    print(f"[TIME] Appointments normalize: {time.time() - t4:.4f}s")
-
-    next_cursor = selected_docs[-1].id if has_next and selected_docs else None
-
-    t5 = time.time()
-    total = 0
-    try:
-        count_agg = count_query.count()
-        count_snapshot = count_agg.get()
-        if count_snapshot:
-            total = int(count_snapshot[0].value)
-    except Exception:
-        total = sum(1 for _ in count_query.stream())
-    print(f"[TIME] Appointments count query: {time.time() - t5:.4f}s")
-
-    print(f"[TIME] Appointments TOTAL API: {time.time() - start_total:.4f}s")
-
+    stats = get_dashboard_stats()
     return {
         "appointments": appointments,
-        "limit": limit,
-        "next_cursor": next_cursor,
-        "has_next": has_next,
-        "total": total,
+        "total_appointments_active": int(
+            stats.get("total_appointments_active", 0) or 0
+        ),
+        "total_appointments_completed": int(
+            stats.get("total_appointments_completed", 0) or 0
+        ),
+        "total_appointments_cancelled": int(
+            stats.get("total_appointments_cancelled", 0) or 0
+        ),
     }
+
+
+# @router.get("/")
+# def get_all_appointments(
+#     date: Optional[str] = Query(default=None),
+#     customer_id: Optional[str] = Query(default=None),
+#     status: Optional[str] = Query(default=None),
+#     minimal: bool = Query(default=False),
+#     limit: int = Query(10, ge=1, le=100),
+#     cursor: str | None = Query(None),
+#     search: str | None = Query(None, min_length=1),
+# ):
+#     start_total = time.time()
+#
+#     t0 = time.time()
+#     db = get_firestore()
+#     base_query = db.collection("appointments")
+#     print(f"[TIME] Appointments DB init: {time.time() - t0:.4f}s")
+#
+#     if minimal:
+#         base_query = base_query.select(
+#             [
+#                 "customerId",
+#                 "customerName",
+#                 "phone",
+#                 "petName",
+#                 "petAgeYears",
+#                 "petAgeMonths",
+#                 "petType",
+#                 "petBreed",
+#                 "petSex",
+#                 "vaccinated",
+#                 "vaccinationStartDate",
+#                 "vaccinationEndDate",
+#                 "deworming",
+#                 "date",
+#                 "time",
+#                 "status",
+#                 "created_at",
+#             ]
+#         )
+#
+#     t1 = time.time()
+#     if search:
+#         term = normalize_name(search) or ""
+#         query = (
+#             base_query.order_by("customerName_lower")
+#             .start_at([term])
+#             .end_at([f"{term}\uf8ff"])
+#         )
+#     else:
+#         query = base_query.order_by("created_at", direction="DESCENDING")
+#
+#     if date:
+#         query = query.where("date", "==", date)
+#     if customer_id:
+#         query = query.where("customerId", "==", customer_id)
+#     if status:
+#         normalized_status = _validate_status(status)
+#         query = query.where("status", "==", normalized_status)
+#
+#     count_query = query
+#     print(f"[TIME] Appointments query build: {time.time() - t1:.4f}s")
+#
+#     t2 = time.time()
+#     appointments_ref = db.collection("appointments")
+#     if cursor:
+#         cursor_doc = appointments_ref.document(cursor).get()
+#         if cursor_doc.exists:
+#             query = query.start_after(cursor_doc)
+#     print(f"[TIME] Appointments cursor handling: {time.time() - t2:.4f}s")
+#
+#     query = query.limit(limit + 1)
+#
+#     t3 = time.time()
+#     docs = list(query.stream())
+#     print(f"[TIME] Appointments DB fetch (stream): {time.time() - t3:.4f}s")
+#
+#     has_next = len(docs) > limit
+#     selected_docs = docs[:limit] if has_next else docs
+#
+#     t4 = time.time()
+#     appointments = []
+#     for doc in selected_docs:
+#         appointment_data = doc.to_dict() or {}
+#         appointment_data["id"] = doc.id
+#         appointments.append(appointment_data)
+#     print(f"[TIME] Appointments normalize: {time.time() - t4:.4f}s")
+#
+#     next_cursor = selected_docs[-1].id if has_next and selected_docs else None
+#
+#     t5 = time.time()
+#     total = 0
+#     try:
+#         count_agg = count_query.count()
+#         count_snapshot = count_agg.get()
+#         if count_snapshot:
+#             total = int(count_snapshot[0].value)
+#     except Exception:
+#         total = sum(1 for _ in count_query.stream())
+#     print(f"[TIME] Appointments count query: {time.time() - t5:.4f}s")
+#
+#     print(f"[TIME] Appointments TOTAL API: {time.time() - start_total:.4f}s")
+#
+#     return {
+#         "appointments": appointments,
+#         "limit": limit,
+#         "next_cursor": next_cursor,
+#         "has_next": has_next,
+#         "total": total,
+#     }
 
 
 @router.get("/{appointment_id}")
@@ -399,8 +419,27 @@ def update_appointment(appointment_id: str, payload: AppointmentUpdate):
         appointment_date = update_data.get("date", existing_data.get("date"))
         _reduce_drug_inventory(db, medicines, appointment_date)
 
+    old_bucket = status_bucket(current_status)
+    new_bucket = status_bucket(next_status)
+    old_fee = _to_float(existing_data.get("doctorFee"), 0)
+    new_fee = _to_float(update_data.get("doctorFee", old_fee), old_fee)
+
     update_data["updated_at"] = datetime.now(timezone.utc)
     doc_ref.update(update_data)
+
+    apply_appointment_status_delta(current_status, next_status)
+
+    if old_bucket == "completed" and new_bucket == "completed":
+        diff = new_fee - old_fee
+        if diff > 0:
+            increment_revenue(diff)
+        elif diff < 0:
+            decrement_revenue(abs(diff))
+    elif old_bucket != "completed" and new_bucket == "completed":
+        increment_revenue(new_fee)
+    elif old_bucket == "completed" and new_bucket != "completed":
+        decrement_revenue(old_fee)
+
     return {"success": True}
 
 
@@ -428,6 +467,16 @@ def update_appointment_status(appointment_id: str, status: str = Query(...)):
         _reduce_drug_inventory(db, medicines, appointment_date)
 
     doc_ref.update(update_payload)
+    apply_appointment_status_delta(current_status, new_status)
+
+    fee = _to_float(current_data.get("doctorFee"), 0)
+    old_bucket = status_bucket(current_status)
+    new_bucket = status_bucket(new_status)
+    if old_bucket != "completed" and new_bucket == "completed":
+        increment_revenue(fee)
+    elif old_bucket == "completed" and new_bucket != "completed":
+        decrement_revenue(fee)
+
     return {"success": True, "status": new_status}
 
 
@@ -440,7 +489,15 @@ def delete_appointment(appointment_id: str):
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
+    existing_data = doc.to_dict() or {}
+    existing_status = existing_data.get("status")
+    existing_fee = _to_float(existing_data.get("doctorFee"), 0)
+
     doc_ref.delete()
+    apply_appointment_status_delta(existing_status, None)
+    if status_bucket(existing_status) == "completed":
+        decrement_revenue(existing_fee)
+
     return {"success": True}
 
 

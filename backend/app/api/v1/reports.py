@@ -92,34 +92,6 @@ def _date_range_label(from_date: date | None, to_date: date | None) -> str:
     return "All dates"
 
 
-def _extract_count_value(raw_count_result: Any) -> int:
-    """
-    Firestore aggregation responses can vary by SDK/runtime version.
-    Handle value shapes safely:
-    - object with `.value`
-    - dict with `value`
-    - list/tuple nesting
-    - plain int
-    """
-    current = raw_count_result
-
-    while isinstance(current, (list, tuple)):
-        if not current:
-            return 0
-        current = current[0]
-
-    if isinstance(current, dict):
-        return int(current.get("value", 0) or 0)
-
-    if hasattr(current, "value"):
-        return int(getattr(current, "value") or 0)
-
-    try:
-        return int(current or 0)
-    except (TypeError, ValueError):
-        return 0
-
-
 @router.get("/appointments")
 def get_appointments_report(
     from_date: str | None = Query(default=None),
@@ -139,23 +111,23 @@ def get_appointments_report(
     appointments_ref = db.collection("appointments")
     filters = _build_filters(parsed_from, parsed_to)
 
-    count_query = _apply_filters(appointments_ref, filters)
-    count_snapshot = count_query.count().get()
-    total = _extract_count_value(count_snapshot)
-
     query = _apply_filters(appointments_ref, filters)
     query = query.order_by("date", direction="DESCENDING").order_by(
         "created_at", direction="DESCENDING"
     )
+    all_docs = list(query.stream())
+    total = len(all_docs)
 
+    start_idx = 0
     if cursor:
-        cursor_doc = appointments_ref.document(cursor).get()
-        if cursor_doc.exists:
-            query = query.start_after(cursor_doc)
+        for idx, doc in enumerate(all_docs):
+            if doc.id == cursor:
+                start_idx = idx + 1
+                break
 
-    docs = list(query.limit(limit + 1).stream())
+    docs = all_docs[start_idx : start_idx + limit + 1]
     has_next = len(docs) > limit
-    selected_docs = docs[:limit] if has_next else docs
+    selected_docs = docs[:limit]
     appointments = [_normalize_report_row(doc) for doc in selected_docs]
     next_cursor = selected_docs[-1].id if has_next and selected_docs else None
 

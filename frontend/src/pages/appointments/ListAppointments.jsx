@@ -41,6 +41,11 @@ export default function ListAppointments() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [appointments, setAppointments] = useState([]);
+  const [appointmentTotals, setAppointmentTotals] = useState({
+    active: 0,
+    completed: 0,
+    cancelled: 0,
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfAppointment, setPdfAppointment] = useState(null);
@@ -61,6 +66,11 @@ export default function ListAppointments() {
         minimal: true,
       });
       setAppointments(response.appointments || []);
+      setAppointmentTotals({
+        active: response.total_appointments_active || 0,
+        completed: response.total_appointments_completed || 0,
+        cancelled: response.total_appointments_cancelled || 0,
+      });
     } catch (err) {
       setError("Failed to load appointments.");
       console.error("Error fetching appointments:", err);
@@ -138,21 +148,6 @@ export default function ListAppointments() {
     }
   };
 
-  const counts = useMemo(
-    () => ({
-      active: appointments.filter(
-        (item) => (item.status || "active").toLowerCase() === "active",
-      ).length,
-      completed: appointments.filter(
-        (item) => (item.status || "active").toLowerCase() === "completed",
-      ).length,
-      cancelled: appointments.filter(
-        (item) => (item.status || "active").toLowerCase() === "cancelled",
-      ).length,
-    }),
-    [appointments],
-  );
-
   const filteredAppointments = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     return appointments.filter((appointment) => {
@@ -227,7 +222,7 @@ export default function ListAppointments() {
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              {tab} ({counts[tab] || 0})
+              {tab} ({appointmentTotals[tab] || 0})
             </button>
           ))}
         </div>

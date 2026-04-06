@@ -1,11 +1,15 @@
 from datetime import datetime, timezone
 from typing import Any
-import time
 
 from fastapi import APIRouter, HTTPException, Query
 
 from app.core.firebase import get_firestore
 from app.schemas.billing import BillingCreate, BillingUpdate
+from app.services.dashboard_stats_service import (
+    decrement_billing,
+    get_dashboard_stats,
+    increment_billing,
+)
 
 router = APIRouter()
 
@@ -106,6 +110,7 @@ def create_billing(payload: BillingCreate):
                 "updated_at": None,
             }
         )
+        increment_billing()
 
         return {"success": True, "billing_id": doc_ref.id, "id": doc_ref.id}
     except HTTPException:
@@ -166,91 +171,14 @@ def update_billing(billing_id: str, payload: BillingUpdate):
     return {"success": True}
 
 
-# @router.get("/")
-# def get_all_billing(
-#     limit: int = Query(10, ge=1, le=100),
-#     cursor: str | None = Query(None),
-#     search: str | None = Query(None, min_length=1),
-# ):
-#     db = get_firestore()
-#     billing_ref = db.collection("billing")
-#
-#     def normalize_doc(doc):
-#         d = doc.to_dict() or {}
-#         return {
-#             "id": doc.id,
-#             "patient_name": d.get("patient_name"),
-#             "phone_number": d.get("phone_number"),
-#             "pet_name": d.get("pet_name"),
-#             "address": d.get("address"),
-#             "date": d.get("date"),
-#             "total_amount": d.get("total_amount", 0),
-#         }
-#
-#     if search:
-#         term = normalize_name(search)
-#         if term is None or term == "":
-#             term = ""
-#
-#         query = (
-#             billing_ref.order_by("patient_name_lower")
-#             .start_at([term])
-#             .end_at([f"{term}\uf8ff"])
-#         )
-#         count_query = (
-#             billing_ref.order_by("patient_name_lower")
-#             .start_at([term])
-#             .end_at([f"{term}\uf8ff"])
-#         )
-#     else:
-#         query = billing_ref.order_by("created_at", direction="DESCENDING")
-#         count_query = billing_ref
-#
-#     if cursor:
-#         cursor_doc = billing_ref.document(cursor).get()
-#         if cursor_doc.exists:
-#             query = query.start_after(cursor_doc)
-#
-#     query = query.limit(limit + 1)
-#
-#     docs = list(query.stream())
-#     has_next = len(docs) > limit
-#     selected_docs = docs[:limit] if has_next else docs
-#
-#     billings = [normalize_doc(doc) for doc in selected_docs]
-#
-#     next_cursor = selected_docs[-1].id if has_next and selected_docs else None
-#
-#     total = 0
-#     try:
-#         count_agg = count_query.count()
-#         count_snapshot = count_agg.get()
-#         if count_snapshot and len(count_snapshot) > 0:
-#             total = int(count_snapshot[0].value)
-#     except Exception:
-#         total = sum(1 for _ in count_query.stream())
-#
-#     return {
-#         "billings": billings,
-#         "limit": limit,
-#         "next_cursor": next_cursor,
-#         "has_next": has_next,
-#         "total": total,
-#     }
-
-
 @router.get("/")
 def get_all_billing(
     limit: int = Query(10, ge=1, le=100),
     cursor: str | None = Query(None),
     search: str | None = Query(None, min_length=1),
 ):
-    start_total = time.time()
-
-    t0 = time.time()
     db = get_firestore()
     billing_ref = db.collection("billing")
-    print(f"[TIME] Billing DB init: {time.time() - t0:.4f}s")
 
     def normalize_doc(doc):
         d = doc.to_dict() or {}
@@ -264,54 +192,36 @@ def get_all_billing(
             "total_amount": d.get("total_amount", 0),
         }
 
-    t1 = time.time()
     if search:
-        term = normalize_name(search) or ""
+        term = normalize_name(search)
+        if term is None or term == "":
+            term = ""
+
         query = (
             billing_ref.order_by("patient_name_lower")
             .start_at([term])
             .end_at([f"{term}\uf8ff"])
         )
-        count_query = query
     else:
         query = billing_ref.order_by("created_at", direction="DESCENDING")
-        count_query = billing_ref
-    print(f"[TIME] Billing query build: {time.time() - t1:.4f}s")
 
-    t2 = time.time()
     if cursor:
         cursor_doc = billing_ref.document(cursor).get()
         if cursor_doc.exists:
             query = query.start_after(cursor_doc)
-    print(f"[TIME] Billing cursor handling: {time.time() - t2:.4f}s")
 
     query = query.limit(limit + 1)
 
-    t3 = time.time()
     docs = list(query.stream())
-    print(f"[TIME] Billing DB fetch (stream): {time.time() - t3:.4f}s")
-
     has_next = len(docs) > limit
     selected_docs = docs[:limit] if has_next else docs
 
-    t4 = time.time()
     billings = [normalize_doc(doc) for doc in selected_docs]
-    print(f"[TIME] Billing normalize: {time.time() - t4:.4f}s")
 
     next_cursor = selected_docs[-1].id if has_next and selected_docs else None
 
-    t5 = time.time()
-    total = 0
-    try:
-        count_agg = count_query.count()
-        count_snapshot = count_agg.get()
-        if count_snapshot:
-            total = int(count_snapshot[0].value)
-    except Exception:
-        total = sum(1 for _ in count_query.stream())
-    print(f"[TIME] Billing count query: {time.time() - t5:.4f}s")
-
-    print(f"[TIME] Billing TOTAL API: {time.time() - start_total:.4f}s")
+    stats = get_dashboard_stats()
+    total = int(stats.get("total_billing", 0) or 0)
 
     return {
         "billings": billings,
@@ -320,6 +230,104 @@ def get_all_billing(
         "has_next": has_next,
         "total": total,
     }
+
+
+@router.delete("/{billing_id}")
+def delete_billing(billing_id: str):
+    db = get_firestore()
+    doc_ref = db.collection("billing").document(billing_id)
+    doc = doc_ref.get()
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Billing record not found")
+
+    doc_ref.delete()
+    decrement_billing()
+
+    return {"success": True}
+
+
+# @router.get("/")
+# def get_all_billing(
+#     limit: int = Query(10, ge=1, le=100),
+#     cursor: str | None = Query(None),
+#     search: str | None = Query(None, min_length=1),
+# ):
+#     start_total = time.time()
+#
+#     t0 = time.time()
+#     db = get_firestore()
+#     billing_ref = db.collection("billing")
+#     print(f"[TIME] Billing DB init: {time.time() - t0:.4f}s")
+#
+#     def normalize_doc(doc):
+#         d = doc.to_dict() or {}
+#         return {
+#             "id": doc.id,
+#             "patient_name": d.get("patient_name"),
+#             "phone_number": d.get("phone_number"),
+#             "pet_name": d.get("pet_name"),
+#             "address": d.get("address"),
+#             "date": d.get("date"),
+#             "total_amount": d.get("total_amount", 0),
+#         }
+#
+#     t1 = time.time()
+#     if search:
+#         term = normalize_name(search) or ""
+#         query = (
+#             billing_ref.order_by("patient_name_lower")
+#             .start_at([term])
+#             .end_at([f"{term}\uf8ff"])
+#         )
+#         count_query = query
+#     else:
+#         query = billing_ref.order_by("created_at", direction="DESCENDING")
+#         count_query = billing_ref
+#     print(f"[TIME] Billing query build: {time.time() - t1:.4f}s")
+#
+#     t2 = time.time()
+#     if cursor:
+#         cursor_doc = billing_ref.document(cursor).get()
+#         if cursor_doc.exists:
+#             query = query.start_after(cursor_doc)
+#     print(f"[TIME] Billing cursor handling: {time.time() - t2:.4f}s")
+#
+#     query = query.limit(limit + 1)
+#
+#     t3 = time.time()
+#     docs = list(query.stream())
+#     print(f"[TIME] Billing DB fetch (stream): {time.time() - t3:.4f}s")
+#
+#     has_next = len(docs) > limit
+#     selected_docs = docs[:limit] if has_next else docs
+#
+#     t4 = time.time()
+#     billings = [normalize_doc(doc) for doc in selected_docs]
+#     print(f"[TIME] Billing normalize: {time.time() - t4:.4f}s")
+#
+#     next_cursor = selected_docs[-1].id if has_next and selected_docs else None
+#
+#     t5 = time.time()
+#     total = 0
+#     try:
+#         count_agg = count_query.count()
+#         count_snapshot = count_agg.get()
+#         if count_snapshot:
+#             total = int(count_snapshot[0].value)
+#     except Exception:
+#         total = sum(1 for _ in count_query.stream())
+#     print(f"[TIME] Billing count query: {time.time() - t5:.4f}s")
+#
+#     print(f"[TIME] Billing TOTAL API: {time.time() - start_total:.4f}s")
+#
+#     return {
+#         "billings": billings,
+#         "limit": limit,
+#         "next_cursor": next_cursor,
+#         "has_next": has_next,
+#         "total": total,
+#     }
 
 
 @router.get("/{billing_id}")

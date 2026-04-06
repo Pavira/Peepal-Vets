@@ -21,6 +21,7 @@ import {
   getDrugById,
   updateDrugName,
 } from "@/services/drug_service";
+import { getDashboardStats } from "@/services/dashboard_service";
 import ModuleHeader from "@/components/ui/ModuleHeader";
 
 const formatDate = (value) => {
@@ -107,7 +108,10 @@ export default function ListDrug() {
       };
 
       const requestId = ++requestIdRef.current;
-      const drugResponse = await getAllDrugs(params);
+      const [drugResponse, statsResponse] = await Promise.all([
+        getAllDrugs(params),
+        getDashboardStats(),
+      ]);
 
       if (requestId !== requestIdRef.current) {
         return;
@@ -116,7 +120,7 @@ export default function ListDrug() {
       setDrugs(drugResponse.drugs || []);
       setNextCursor(drugResponse.next_cursor || null);
       setHasNext(Boolean(drugResponse.has_next));
-      setTotalDrugs(drugResponse.total ?? 0);
+      setTotalDrugs(statsResponse?.data?.total_drugs ?? 0);
       setIsInitialLoad(false);
     } catch (err) {
       setError("Failed to load drugs. Please try again later.");
@@ -148,7 +152,7 @@ export default function ListDrug() {
 
   const startIndex = cursorHistory.length * drugsPerPage;
   const paginatedDrugs = drugs;
-  const displayedTotal = totalDrugs || drugs.length;
+  const displayedTotal = totalDrugs;
 
   const closeAllModals = () => {
     setIsViewOpen(false);
@@ -319,7 +323,7 @@ export default function ListDrug() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
           <p className="inline-flex items-center gap-2 text-sm text-purple-800 font-bold uppercase tracking-wide">
             <Package size={16} />
-            Total Drugs - {totalDrugs || drugs.length}
+            Total Drugs - {totalDrugs}
           </p>
         </div>
 
