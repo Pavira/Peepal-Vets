@@ -133,107 +133,19 @@ def delete_customer(customer_id: str):
     return {"success": True}
 
 
-@router.get("/")
-def get_all_customers(
-    limit: int = Query(10, ge=1, le=100),
-    cursor: str | None = Query(None),
-    search: str | None = Query(None, min_length=1),
-):
-    start_total = time.time()
-
-    # 🔹 DB init timing
-    t0 = time.time()
-    db = get_firestore()
-    customers_ref = db.collection("customers")
-    print(f"[TIME] DB init: {time.time() - t0:.4f}s")
-
-    def normalize(doc):
-        data = doc.to_dict() or {}
-        return {
-            "id": doc.id,
-            "name": data.get("name"),
-            "phone": data.get("phone"),
-            "petName": data.get("petName"),
-            "petType": data.get("petType"),
-        }
-
-    # 🔹 Query build timing
-    t1 = time.time()
-    if search:
-        term = normalize_name(search) or ""
-
-        query = (
-            customers_ref.order_by("name_lower")
-            .start_at([term])
-            .end_at([f"{term}\uf8ff"])
-        )
-        count_query = query  # ⚠️ same query
-    else:
-        query = customers_ref.order_by("created_at", direction="DESCENDING")
-        count_query = customers_ref
-    print(f"[TIME] Query build: {time.time() - t1:.4f}s")
-
-    # 🔹 Cursor handling
-    t2 = time.time()
-    if cursor:
-        cursor_doc = customers_ref.document(cursor).get()
-        if cursor_doc.exists:
-            query = query.start_after(cursor_doc)
-    print(f"[TIME] Cursor handling: {time.time() - t2:.4f}s")
-
-    query = query.limit(limit + 1)
-
-    # 🔹 Fetch data
-    t3 = time.time()
-    docs = list(query.stream())
-    print(f"[TIME] DB fetch (stream): {time.time() - t3:.4f}s")
-
-    has_next = len(docs) > limit
-    selected_docs = docs[:limit] if has_next else docs
-
-    # 🔹 Normalize data
-    t4 = time.time()
-    customers = [normalize(doc) for doc in selected_docs]
-    print(f"[TIME] Normalize: {time.time() - t4:.4f}s")
-
-    next_cursor = None
-    if has_next and selected_docs:
-        next_cursor = selected_docs[-1].id
-
-    # 🔥 COUNT TIMING (MAIN BOTTLENECK)
-    t5 = time.time()
-    total = 0
-    try:
-        count_agg = count_query.count()
-        count_snapshot = count_agg.get()
-        if count_snapshot:
-            total = int(count_snapshot[0].value)
-    except Exception:
-        total = sum(1 for _ in count_query.stream())
-    print(f"[TIME] COUNT query: {time.time() - t5:.4f}s")
-
-    print(f"[TIME] TOTAL API: {time.time() - start_total:.4f}s")
-
-    return {
-        "customers": customers,
-        "limit": limit,
-        "next_cursor": next_cursor,
-        "has_next": has_next,
-        "total": total,
-    }
-
-
-# ---------------------------
-# Get All Customers with pagination and optional search
-# ---------------------------
 # @router.get("/")
 # def get_all_customers(
 #     limit: int = Query(10, ge=1, le=100),
 #     cursor: str | None = Query(None),
 #     search: str | None = Query(None, min_length=1),
 # ):
+#     start_total = time.time()
+
+#     # 🔹 DB init timing
+#     t0 = time.time()
 #     db = get_firestore()
 #     customers_ref = db.collection("customers")
+#     print(f"[TIME] DB init: {time.time() - t0:.4f}s")
 
 #     def normalize(doc):
 #         data = doc.to_dict() or {}
@@ -245,55 +157,62 @@ def get_all_customers(
 #             "petType": data.get("petType"),
 #         }
 
-#     # Build base query + count query
+#     # 🔹 Query build timing
+#     t1 = time.time()
 #     if search:
-#         term = normalize_name(search)
-#         if term is None or term == "":
-#             term = ""
+#         term = normalize_name(search) or ""
 
 #         query = (
 #             customers_ref.order_by("name_lower")
 #             .start_at([term])
 #             .end_at([f"{term}\uf8ff"])
 #         )
-#         count_query = (
-#             customers_ref.order_by("name_lower")
-#             .start_at([term])
-#             .end_at([f"{term}\uf8ff"])
-#         )
+#         count_query = query  # ⚠️ same query
 #     else:
 #         query = customers_ref.order_by("created_at", direction="DESCENDING")
 #         count_query = customers_ref
+#     print(f"[TIME] Query build: {time.time() - t1:.4f}s")
 
-#     # Apply cursor pagination
+#     # 🔹 Cursor handling
+#     t2 = time.time()
 #     if cursor:
 #         cursor_doc = customers_ref.document(cursor).get()
 #         if cursor_doc.exists:
 #             query = query.start_after(cursor_doc)
+#     print(f"[TIME] Cursor handling: {time.time() - t2:.4f}s")
 
 #     query = query.limit(limit + 1)
 
+#     # 🔹 Fetch data
+#     t3 = time.time()
 #     docs = list(query.stream())
-#     has_next = len(docs) > limit
+#     print(f"[TIME] DB fetch (stream): {time.time() - t3:.4f}s")
 
+#     has_next = len(docs) > limit
 #     selected_docs = docs[:limit] if has_next else docs
 
+#     # 🔹 Normalize data
+#     t4 = time.time()
 #     customers = [normalize(doc) for doc in selected_docs]
+#     print(f"[TIME] Normalize: {time.time() - t4:.4f}s")
 
 #     next_cursor = None
 #     if has_next and selected_docs:
 #         next_cursor = selected_docs[-1].id
 
-#     # total count aggregation
+#     # 🔥 COUNT TIMING (MAIN BOTTLENECK)
+#     t5 = time.time()
 #     total = 0
 #     try:
 #         count_agg = count_query.count()
 #         count_snapshot = count_agg.get()
-#         if count_snapshot and len(count_snapshot) > 0:
+#         if count_snapshot:
 #             total = int(count_snapshot[0].value)
 #     except Exception:
-#         # fallback in case count aggregation not available
 #         total = sum(1 for _ in count_query.stream())
+#     print(f"[TIME] COUNT query: {time.time() - t5:.4f}s")
+
+#     print(f"[TIME] TOTAL API: {time.time() - start_total:.4f}s")
 
 #     return {
 #         "customers": customers,
@@ -302,6 +221,87 @@ def get_all_customers(
 #         "has_next": has_next,
 #         "total": total,
 #     }
+
+
+# ---------------------------
+# Get All Customers with pagination and optional search
+# ---------------------------
+@router.get("/")
+def get_all_customers(
+    limit: int = Query(10, ge=1, le=100),
+    cursor: str | None = Query(None),
+    search: str | None = Query(None, min_length=1),
+):
+    db = get_firestore()
+    customers_ref = db.collection("customers")
+
+    def normalize(doc):
+        data = doc.to_dict() or {}
+        return {
+            "id": doc.id,
+            "name": data.get("name"),
+            "phone": data.get("phone"),
+            "petName": data.get("petName"),
+            "petType": data.get("petType"),
+        }
+
+    # Build base query + count query
+    if search:
+        term = normalize_name(search)
+        if term is None or term == "":
+            term = ""
+
+        query = (
+            customers_ref.order_by("name_lower")
+            .start_at([term])
+            .end_at([f"{term}\uf8ff"])
+        )
+        count_query = (
+            customers_ref.order_by("name_lower")
+            .start_at([term])
+            .end_at([f"{term}\uf8ff"])
+        )
+    else:
+        query = customers_ref.order_by("created_at", direction="DESCENDING")
+        count_query = customers_ref
+
+    # Apply cursor pagination
+    if cursor:
+        cursor_doc = customers_ref.document(cursor).get()
+        if cursor_doc.exists:
+            query = query.start_after(cursor_doc)
+
+    query = query.limit(limit + 1)
+
+    docs = list(query.stream())
+    has_next = len(docs) > limit
+
+    selected_docs = docs[:limit] if has_next else docs
+
+    customers = [normalize(doc) for doc in selected_docs]
+
+    next_cursor = None
+    if has_next and selected_docs:
+        next_cursor = selected_docs[-1].id
+
+    # total count aggregation
+    # total = 0
+    # try:
+    #     count_agg = count_query.count()
+    #     count_snapshot = count_agg.get()
+    #     if count_snapshot and len(count_snapshot) > 0:
+    #         total = int(count_snapshot[0].value)
+    # except Exception:
+    #     # fallback in case count aggregation not available
+    #     total = sum(1 for _ in count_query.stream())
+
+    return {
+        "customers": customers,
+        "limit": limit,
+        "next_cursor": next_cursor,
+        "has_next": has_next,
+        # "total": total,
+    }
 
 
 # ---------------------------
