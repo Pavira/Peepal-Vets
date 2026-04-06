@@ -273,12 +273,12 @@ export default function ListCustomers() {
           }
         />
 
-        <div className="mb-4">
+        {/* <div className="mb-4">
           <p className="inline-flex items-center gap-2 text-sm text-purple-800 font-bold uppercase tracking-wide">
             <Users size={16} />
             Total Patients - {totalCustomers || customers.length}
           </p>
-        </div>
+        </div> */}
 
         {/* Search Bar */}
         <div className="mb-6 relative">
@@ -502,8 +502,8 @@ export default function ListCustomers() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-6 pt-4 border-t border-gray-200">
               <div className="text-xs md:text-sm text-gray-600">
                 Showing {customers.length > 0 ? startIndex + 1 : 0} to{" "}
-                {startIndex + customers.length} of{" "}
-                {totalCustomers || customers.length} patients
+                {startIndex + customers.length} patients
+                {/* {totalCustomers || customers.length} patients */}
               </div>
 
               <div className="flex items-center gap-1 md:gap-2">
@@ -517,8 +517,10 @@ export default function ListCustomers() {
                 </button>
 
                 <span className="text-xs md:text-sm text-gray-600 px-2">
-                  Showing {startIndex + 1} to {startIndex + customers.length} of{" "}
-                  {totalCustomers} patients
+                  {/* Showing {startIndex + 1} to {startIndex + customers.length} of{" "}
+                  {totalCustomers} patients */}
+                  Showing {customers.length > 0 ? startIndex + 1 : 0} to{" "}
+                  {startIndex + customers.length} patients
                 </span>
 
                 <button
