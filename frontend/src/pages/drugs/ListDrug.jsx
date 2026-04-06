@@ -54,7 +54,7 @@ export default function ListDrug() {
   const [cursorHistory, setCursorHistory] = useState([]);
   const [nextCursor, setNextCursor] = useState(null);
   const [hasNext, setHasNext] = useState(false);
-  const [totalDrugs, setTotalDrugs] = useState(0);
+  // const [totalDrugs, setTotalDrugs] = useState(0);
   const [drugsPerPage] = useState(10);
   const [error, setError] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -110,7 +110,7 @@ export default function ListDrug() {
       const requestId = ++requestIdRef.current;
       const [drugResponse, statsResponse] = await Promise.all([
         getAllDrugs(params),
-        getDashboardStats(),
+        // getDashboardStats(),
       ]);
 
       if (requestId !== requestIdRef.current) {
@@ -120,7 +120,7 @@ export default function ListDrug() {
       setDrugs(drugResponse.drugs || []);
       setNextCursor(drugResponse.next_cursor || null);
       setHasNext(Boolean(drugResponse.has_next));
-      setTotalDrugs(statsResponse?.data?.total_drugs ?? 0);
+      // setTotalDrugs(statsResponse?.data?.total_drugs ?? 0);
       setIsInitialLoad(false);
     } catch (err) {
       setError("Failed to load drugs. Please try again later.");
@@ -152,7 +152,7 @@ export default function ListDrug() {
 
   const startIndex = cursorHistory.length * drugsPerPage;
   const paginatedDrugs = drugs;
-  const displayedTotal = totalDrugs;
+  // const displayedTotal = totalDrugs;
 
   const closeAllModals = () => {
     setIsViewOpen(false);
@@ -320,12 +320,12 @@ export default function ListDrug() {
           }
         />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+        {/* <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
           <p className="inline-flex items-center gap-2 text-sm text-purple-800 font-bold uppercase tracking-wide">
             <Package size={16} />
             Total Drugs - {totalDrugs}
           </p>
-        </div>
+        </div> */}
 
         <div className="mb-6 relative">
           <Search className="absolute left-3 top-3 text-gray-400" size={20} />
@@ -486,7 +486,8 @@ export default function ListDrug() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-6 pt-4 border-t border-gray-200">
               <div className="text-xs md:text-sm text-gray-600">
                 Showing {drugs.length > 0 ? startIndex + 1 : 0} to{" "}
-                {startIndex + drugs.length} of {displayedTotal} drugs
+                {startIndex + drugs.length} of drugs
+                {/* {displayedTotal} drugs */}
               </div>
 
               <div className="flex items-center gap-1 md:gap-2">

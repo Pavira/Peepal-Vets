@@ -25,7 +25,7 @@ export default function ListBilling() {
   const [cursorHistory, setCursorHistory] = useState([]);
   const [nextCursor, setNextCursor] = useState(null);
   const [hasNext, setHasNext] = useState(false);
-  const [totalBilling, setTotalBilling] = useState(0);
+  // const [totalBilling, setTotalBilling] = useState(0);
 
   const [showBillModal, setShowBillModal] = useState(false);
   const [selectedBilling, setSelectedBilling] = useState(null);
@@ -77,7 +77,7 @@ export default function ListBilling() {
 
         const [response, statsResponse] = await Promise.all([
           getAllBilling(params),
-          getDashboardStats(),
+          // getDashboardStats(),
         ]);
 
         if (requestId !== requestIdRef.current) {
@@ -87,7 +87,7 @@ export default function ListBilling() {
         setBillings(response.billings || []);
         setNextCursor(response.next_cursor || null);
         setHasNext(Boolean(response.has_next));
-        setTotalBilling(statsResponse?.data?.total_billing || 0);
+        // setTotalBilling(statsResponse?.data?.total_billing || 0);
       } catch (err) {
         console.error("Error fetching billing list:", err);
         setError("Failed to load billing list. Please try again.");
@@ -163,12 +163,12 @@ export default function ListBilling() {
           }
         />
 
-        <div className="mb-4">
+        {/* <div className="mb-4">
           <p className="inline-flex items-center gap-2 text-sm text-purple-800 font-bold uppercase tracking-wide">
             <Users size={16} />
             Total Bills - {totalBilling}
           </p>
-        </div>
+        </div> */}
 
         <div className="mb-6 relative">
           <Search className="absolute left-3 top-3 text-gray-400" size={20} />
@@ -326,8 +326,8 @@ export default function ListBilling() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-6 pt-4 border-t border-gray-200">
               <div className="text-xs md:text-sm text-gray-600">
                 Showing {billings.length > 0 ? startIndex + 1 : 0} to{" "}
-                {startIndex + billings.length} of{" "}
-                {totalBilling} bills
+                {startIndex + billings.length} of bills
+                {/* {totalBilling} bills */}
               </div>
               <div className="flex items-center gap-1 md:gap-2">
                 <button
@@ -340,7 +340,7 @@ export default function ListBilling() {
                 </button>
                 <span className="text-xs md:text-sm text-gray-600 px-2">
                   {startIndex + 1} to {startIndex + billings.length} of{" "}
-                  {totalBilling}
+                  {/* {totalBilling} */}
                 </span>
                 <button
                   onClick={handleNextPage}
