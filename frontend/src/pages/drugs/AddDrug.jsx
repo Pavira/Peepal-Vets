@@ -20,6 +20,8 @@ export default function AddDrug() {
     gstPercent: "0",
   });
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+
   const subTotal = useMemo(
     () => Number(formData.quantity || 0) * Number(formData.price || 0),
     [formData.quantity, formData.price],
@@ -78,6 +80,7 @@ export default function AddDrug() {
     }
 
     try {
+      setLoading(true);
       await createDrug({
         name: formData.name.trim(),
         date: formData.date,
@@ -95,6 +98,8 @@ export default function AddDrug() {
       } else {
         toast.error("Failed to add drug. Please try again.");
       }
+    } finally {
+      setLoading(false);
     }
   };
 

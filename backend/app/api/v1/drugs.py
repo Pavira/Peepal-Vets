@@ -65,12 +65,18 @@ def _build_adjustment_entry(
     date: str,
     adjustment_type: str,
     quantity: float,
+    price: float,
+    gst_percent: float,
     reason: str,
     # remark: str | None,
 ) -> dict[str, Any]:
     normalized_adjustment = (adjustment_type or "").strip().lower()
     qty = _normalize_number(quantity)
+    unit_price = _normalize_number(price)
+    gst_value = _normalize_number(gst_percent)
     signed_quantity = qty if normalized_adjustment == "add" else -qty
+    base_amount = signed_quantity * unit_price
+    gst_amount = base_amount * gst_value / 100
 
     return {
         "id": f"entry_{uuid4().hex}",
@@ -78,11 +84,11 @@ def _build_adjustment_entry(
         "entryType": "adjustment",
         "adjustmentType": normalized_adjustment,
         "quantity": signed_quantity,
-        "price": 0,
-        "gstPercent": 0,
-        "baseAmount": 0,
-        "gstAmount": 0,
-        "totalBill": 0,
+        "price": unit_price,
+        "gstPercent": gst_value,
+        "baseAmount": base_amount,
+        "gstAmount": gst_amount,
+        "totalBill": base_amount + gst_amount,
         "reason": (reason or "").strip(),
         # "remark": (remark or "").strip(),
     }
@@ -431,6 +437,8 @@ def adjust_drug_quantity(drug_id: str, payload: DrugQuantityAdjustmentCreate):
         payload.date,
         adjustment_type,
         adjustment_quantity,
+        payload.price,
+        payload.gstPercent,
         reason,
         # payload.remark,
     )

@@ -20,7 +20,9 @@ class DashboardService:
                 f"[TIME] DashboardService.get_stats metadata fetch: {time.time() - t0:.4f}s"
             )
 
-            print(f"[TIME] DashboardService.get_stats TOTAL: {time.time() - start_total:.4f}s")
+            print(
+                f"[TIME] DashboardService.get_stats TOTAL: {time.time() - start_total:.4f}s"
+            )
             return stats
         except Exception as e:
             print(
@@ -29,7 +31,7 @@ class DashboardService:
             logger.error(f"Error fetching dashboard stats: {str(e)}")
             raise Exception(f"Failed to fetch dashboard stats: {str(e)}")
 
-    def get_low_stock_drugs(self, threshold: int = 50, limit: int = 10) -> list:
+    def get_low_stock_drugs(self, threshold: int = 10, limit: int = 10) -> list:
         """Fetch low stock drugs sorted by quantity ascending."""
         start_total = time.time()
         try:
@@ -40,11 +42,15 @@ class DashboardService:
                 .order_by("presentQuantity", direction="ASCENDING")
                 .limit(limit)
             )
-            print(f"[TIME] DashboardService.get_low_stock_drugs query build: {time.time() - t0:.4f}s")
+            print(
+                f"[TIME] DashboardService.get_low_stock_drugs query build: {time.time() - t0:.4f}s"
+            )
 
             t1 = time.time()
             docs = list(query.stream())
-            print(f"[TIME] DashboardService.get_low_stock_drugs stream fetch: {time.time() - t1:.4f}s")
+            print(
+                f"[TIME] DashboardService.get_low_stock_drugs stream fetch: {time.time() - t1:.4f}s"
+            )
 
             t2 = time.time()
             low_stock = []
@@ -59,13 +65,17 @@ class DashboardService:
                         "lastAddedDate": d.get("lastAddedDate", "N/A"),
                         "status": (
                             "critical"
-                            if int(d.get("presentQuantity", 0) or 0) < 20
+                            if int(d.get("presentQuantity", 0) or 0) < 5
                             else "low"
                         ),
                     }
                 )
-            print(f"[TIME] DashboardService.get_low_stock_drugs normalize: {time.time() - t2:.4f}s")
-            print(f"[TIME] DashboardService.get_low_stock_drugs TOTAL: {time.time() - start_total:.4f}s")
+            print(
+                f"[TIME] DashboardService.get_low_stock_drugs normalize: {time.time() - t2:.4f}s"
+            )
+            print(
+                f"[TIME] DashboardService.get_low_stock_drugs TOTAL: {time.time() - start_total:.4f}s"
+            )
 
             return low_stock
         except Exception as e:

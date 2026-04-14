@@ -114,7 +114,15 @@ export const updateDrug = async (drugId, payload) => {
 
 // Adjust drug quantity with reason/remark
 export const adjustDrugQuantity = async (drugId, payload) => {
-  const res = await api.post(`/drugs/${drugId}/adjustments`, payload);
+  const requestBody = {
+    date: payload.date,
+    adjustmentType: payload.adjustmentType,
+    quantity: Number(payload.quantity),
+    price: Number(payload.price),
+    gstPercent: Number(payload.gstPercent ?? 0),
+    reason: payload.reason ?? "",
+  };
+  const res = await api.post(`/drugs/${drugId}/adjustments`, requestBody);
   await refreshDrugNameQtyCacheSafely();
   return res.data;
 };

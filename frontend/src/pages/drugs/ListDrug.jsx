@@ -16,6 +16,7 @@ import {
 import toast from "react-hot-toast";
 import {
   adjustDrugQuantity,
+  deleteDrug,
   deleteDrugHistoryEntry,
   getAllDrugs,
   getDrugById,
@@ -23,6 +24,8 @@ import {
 } from "@/services/drug_service";
 import { getDashboardStats } from "@/services/dashboard_service";
 import ModuleHeader from "@/components/ui/ModuleHeader";
+
+const GST_OPTIONS = [0, 5, 12, 18, 28];
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -70,11 +73,18 @@ export default function ListDrug() {
     date: today,
     adjustmentType: "add",
     quantity: "",
+    price: "",
+    gstPercent: 0,
     reason: "",
     // remark: "",
   });
   const [editName, setEditName] = useState("");
   const [modalLoading, setModalLoading] = useState(false);
+  const adjustmentBaseAmount =
+    Number(adjustForm.quantity || 0) * Number(adjustForm.price || 0);
+  const adjustmentGstAmount =
+    adjustmentBaseAmount * Number(adjustForm.gstPercent || 0) / 100;
+  const adjustmentTotalAmount = adjustmentBaseAmount + adjustmentGstAmount;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -163,6 +173,8 @@ export default function ListDrug() {
       date: today,
       adjustmentType: "add",
       quantity: "",
+      price: "",
+      gstPercent: 0,
       reason: "",
       // remark: "",
     });
@@ -183,6 +195,8 @@ export default function ListDrug() {
       date: today,
       adjustmentType: "add",
       quantity: "",
+      price: "",
+      gstPercent: 0,
       reason: "",
       // remark: "",
     });
@@ -210,6 +224,14 @@ export default function ListDrug() {
       toast.error("Quantity must be greater than 0.");
       return;
     }
+    if (!adjustForm.price || Number(adjustForm.price) <= 0) {
+      toast.error("Price must be greater than 0.");
+      return;
+    }
+    if (Number(adjustForm.gstPercent) < 0) {
+      toast.error("GST must be 0 or more.");
+      return;
+    }
     // if (!adjustForm.reason.trim()) {
     //   toast.error("Reason is required.");
     //   return;
@@ -221,6 +243,8 @@ export default function ListDrug() {
         date: adjustForm.date,
         adjustmentType: adjustForm.adjustmentType,
         quantity: Number(adjustForm.quantity),
+        price: Number(adjustForm.price),
+        gstPercent: Number(adjustForm.gstPercent),
         reason: adjustForm.reason.trim(),
         // remark: adjustForm.remark.trim(),
       });
@@ -282,6 +306,29 @@ export default function ListDrug() {
       toast.success("History entry deleted.");
     } catch {
       toast.error("Failed to delete history entry.");
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleDeleteDrug = async () => {
+    if (!selectedDrug?.id) return;
+
+    const isConfirmed = window.confirm(
+      `Delete "${selectedDrug.name}"? This action cannot be undone.`,
+    );
+    if (!isConfirmed) {
+      return;
+    }
+
+    try {
+      setModalLoading(true);
+      await deleteDrug(selectedDrug.id);
+      await fetchDrugs();
+      toast.success("Drug deleted successfully.");
+      closeAllModals();
+    } catch {
+      toast.error("Failed to delete drug.");
     } finally {
       setModalLoading(false);
     }
@@ -746,6 +793,74 @@ export default function ListDrug() {
 
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Price
+                      </label>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        name="price"
+                        value={adjustForm.price}
+                        onChange={(event) =>
+                          setAdjustForm((prev) => ({
+                            ...prev,
+                            price: event.target.value,
+                          }))
+                        }
+                        placeholder="Enter price"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        GST (%)
+                      </label>
+                      <select
+                        name="gstPercent"
+                        value={adjustForm.gstPercent}
+                        onChange={(event) =>
+                          setAdjustForm((prev) => ({
+                            ...prev,
+                            gstPercent: Number(event.target.value),
+                          }))
+                        }
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition bg-white"
+                      >
+                        {GST_OPTIONS.map((option) => (
+                          <option key={option} value={option}>
+                            {option}%
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Total GST
+                      </label>
+                      <input
+                        type="number"
+                        value={adjustmentGstAmount.toFixed(2)}
+                        disabled
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Total Amount
+                      </label>
+                      <input
+                        type="number"
+                        value={adjustmentTotalAmount.toFixed(2)}
+                        disabled
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Reason
                       </label>
                       <input
@@ -815,7 +930,16 @@ export default function ListDrug() {
                     />
                   </div>
 
-                  <div className="flex justify-end">
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={handleDeleteDrug}
+                      disabled={modalLoading}
+                      className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold py-2.5 px-5 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
+                    >
+                      {modalLoading ? "Deleting..." : "Delete Drug"}
+                    </button>
+
                     <button
                       type="submit"
                       disabled={modalLoading}
